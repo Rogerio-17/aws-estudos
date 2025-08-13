@@ -49,14 +49,12 @@ export class ProductsAppStack extends cdk.Stack {
         bundling: {
           minify: true,
           sourceMap: false,
-          //nodeModules: ["aws-xray-sdk-core"],
-          //forceDockerBundling: false,
         },
         environment: {
           PRODUCTS_DDB: this.productsDdb.tableName,
         },
         layers: [productsLayer],
-        //tracing: lambda.Tracing.ACTIVE, // Serve para fazer o mapeamento do recursos que as funções Lambda estão utilizando (gera custo adicional)
+        tracing: lambda.Tracing.ACTIVE, // Serve para fazer o mapeamento do recursos que as funções Lambda estão utilizando (gera custo adicional)
       }
     );
     // Dar permissões necessárias para a função Lambda ler dados da tabela DynamoDB
@@ -76,13 +74,12 @@ export class ProductsAppStack extends cdk.Stack {
         bundling: {
           minify: true,
           sourceMap: false,
-          //nodeModules: ["aws-xray-sdk-core"],
         },
         environment: {
           PRODUCTS_DDB: this.productsDdb.tableName,
         },
         layers: [productsLayer],
-        //tracing: lambda.Tracing.ACTIVE, // Serve para fazer o mapeamento do recursos que as funções Lambda estão utilizando (gera custo adicional)
+        tracing: lambda.Tracing.ACTIVE, // Serve para fazer o mapeamento do recursos que as funções Lambda estão utilizando (gera custo adicional)
       }
     );
     // Dar permissões necessárias para a função Lambda escrever dados da tabela DynamoDB
