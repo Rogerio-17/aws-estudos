@@ -6,12 +6,16 @@ import * as ssm from "aws-cdk-lib/aws-ssm";
 
 import { Construct } from "constructs";
 
+interface ProductsAppStackProps extends cdk.StackProps {
+  eventsDdb: dynamodb.Table;
+}
+
 export class ProductsAppStack extends cdk.Stack {
   readonly productsFunctionHandler: lambdaNodeJS.NodejsFunction;
   readonly productsAdminHandler: lambdaNodeJS.NodejsFunction;
   readonly productsDdb: dynamodb.Table;
 
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props: ProductsAppStackProps) {
     super(scope, id, props);
 
     // Define a DynamoDB table for products
@@ -35,6 +39,29 @@ export class ProductsAppStack extends cdk.Stack {
       productsLayerArn
     );
 
+    // Define uma lambda function criar eventos de produtos
+    const productEventsHandler = new lambdaNodeJS.NodejsFunction(
+      this,
+      "ProductsEventsFunction",
+      {
+        functionName: "ProductsEventsFunction",
+        entry: "lambda/products/ProductEventsFunction.ts",
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_20_X,
+        memorySize: 512,
+        timeout: cdk.Duration.seconds(2),
+        bundling: {
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          EVENTS_DDB: props.eventsDdb.tableName,
+        },
+        insightsVersion: lambda.LambdaInsightsVersion.VERSION_1_0_119_0,
+      }
+    );
+    props.eventsDdb.grantWriteData(productEventsHandler); // Define o tipo de permissão que a função vai ter dentro do DynamoDB
+
     // Define uma lambda function para buscar produtos
     this.productsFunctionHandler = new lambdaNodeJS.NodejsFunction(
       this,
@@ -54,7 +81,7 @@ export class ProductsAppStack extends cdk.Stack {
           PRODUCTS_DDB: this.productsDdb.tableName,
         },
         layers: [productsLayer],
-        tracing: lambda.Tracing.ACTIVE, // Serve para fazer o mapeamento do recursos que as funções Lambda estão utilizando (gera custo adicional)
+        insightsVersion: lambda.LambdaInsightsVersion.VERSION_1_0_119_0,
       }
     );
     // Dar permissões necessárias para a função Lambda ler dados da tabela DynamoDB
@@ -77,12 +104,14 @@ export class ProductsAppStack extends cdk.Stack {
         },
         environment: {
           PRODUCTS_DDB: this.productsDdb.tableName,
+          PRODUCTS_EVENTS_FUNCTION_NAME: productEventsHandler.functionName,
         },
         layers: [productsLayer],
-        tracing: lambda.Tracing.ACTIVE, // Serve para fazer o mapeamento do recursos que as funções Lambda estão utilizando (gera custo adicional)
+        insightsVersion: lambda.LambdaInsightsVersion.VERSION_1_0_119_0,
       }
     );
     // Dar permissões necessárias para a função Lambda escrever dados da tabela DynamoDB
     this.productsDdb.grantWriteData(this.productsAdminHandler);
+    productEventsHandler.grantInvoke(this.productsAdminHandler); // Da permissão para a função de administração invocar a função de eventos
   }
 }

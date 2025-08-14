@@ -83,17 +83,19 @@ export class ProductRepository {
         ConditionExpression: "attribute_exists(id)", // Garante que o produto existe
         ReturnValues: "UPDATED_NEW", // Retorna os novos valores atualizados
         UpdateExpression:
-          "set productName = :n, code = :c, price = :p, model = :m, productUrl = :u", // Define os atributos a serem atualizados
+          "set productName = :n, code = :c, price = :p, model = :m", // Define os atributos a serem atualizados
         ExpressionAttributeValues: {
           // Define os novos valores dos atributos
           ":n": product.productName,
           ":c": product.code,
           ":p": product.price,
           ":m": product.model,
-          ":u": product.productUrl,
         },
       })
       .promise();
+
+    console.log("Product:", product);
+    console.log("Product updated:", data.Attributes);
 
     return data.Attributes as Product;
   }
