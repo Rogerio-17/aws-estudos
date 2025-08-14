@@ -39,6 +39,17 @@ export class ProductsAppStack extends cdk.Stack {
       productsLayerArn
     );
 
+    // Product Events Layer
+    const productEventsLayerArn = ssm.StringParameter.valueForStringParameter(
+      this,
+      "ProductEventsLayerVersionArn"
+    );
+    const productEventsLayer = lambda.LayerVersion.fromLayerVersionArn(
+      this,
+      "ProductEventsLayerVersionArn",
+      productEventsLayerArn
+    );
+
     // Define uma lambda function criar eventos de produtos
     const productEventsHandler = new lambdaNodeJS.NodejsFunction(
       this,
@@ -57,6 +68,7 @@ export class ProductsAppStack extends cdk.Stack {
         environment: {
           EVENTS_DDB: props.eventsDdb.tableName,
         },
+        layers: [productEventsLayer],
         insightsVersion: lambda.LambdaInsightsVersion.VERSION_1_0_119_0,
       }
     );
@@ -101,12 +113,13 @@ export class ProductsAppStack extends cdk.Stack {
         bundling: {
           minify: true,
           sourceMap: false,
+          //nodeModules: ["aws-xray-sdk-core"], // Verificar se ainda vai da error de build
         },
         environment: {
           PRODUCTS_DDB: this.productsDdb.tableName,
           PRODUCTS_EVENTS_FUNCTION_NAME: productEventsHandler.functionName,
         },
-        layers: [productsLayer],
+        layers: [productsLayer, productEventsLayer],
         insightsVersion: lambda.LambdaInsightsVersion.VERSION_1_0_119_0,
       }
     );
