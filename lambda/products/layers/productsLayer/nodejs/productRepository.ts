@@ -44,6 +44,27 @@ export class ProductRepository {
     throw new Error("Product not found");
   }
 
+  async getProductsByIds(productIds: string[]): Promise<Product[]> {
+    const keys: { id: string }[] = [];
+
+    productIds.forEach((productId) => {
+      keys.push({ id: productId });
+    });
+
+    const data = await this.ddbClient
+      .batchGet({
+        // Se eu quiser usar os mesmos parametos para fazer requisição em duas tableas diferentes eu consigo.
+        RequestItems: {
+          [this.productsDdb]: {
+            Keys: keys,
+          },
+        },
+      })
+      .promise();
+
+    return (data.Responses![this.productsDdb] as Product[]) || [];
+  }
+
   async createProduct(product: Product): Promise<Product> {
     product.id = uuid();
 

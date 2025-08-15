@@ -1,7 +1,6 @@
 import { Callback, Context } from "aws-lambda";
 import { ProductEvent } from "/opt/nodejs/productEventsLayer";
 import { DynamoDB } from "aws-sdk";
-import { create } from "domain";
 
 const eventsDdb = process.env.EVENTS_DDB!;
 const ddbClient = new DynamoDB.DocumentClient();
