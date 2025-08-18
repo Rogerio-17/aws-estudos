@@ -51,6 +51,7 @@ const ordersAppStack = new OrdersAppStack(app, "OrdersApp", {
   tags: tags,
   env: env,
   productsDdb: productsAppStack.productsDdb,
+  eventsDdb: eventsDdbStack.table,
 });
 
 ordersAppStack.addDependency(productsAppStack);
@@ -66,3 +67,4 @@ const eCommerceApiStack = new ECommerceApiStack(app, "ECommerceApi", {
 
 eCommerceApiStack.addDependency(productsAppStack);
 eCommerceApiStack.addDependency(ordersAppStack);
+eCommerceApiStack.addDependency(eventsDdbStack);

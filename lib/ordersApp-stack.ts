@@ -3,10 +3,14 @@ import * as lambdaNodeJS from "aws-cdk-lib/aws-lambda-nodejs";
 import * as cdk from "aws-cdk-lib";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as ssm from "aws-cdk-lib/aws-ssm";
+import * as sns from "aws-cdk-lib/aws-sns";
+import * as subs from "aws-cdk-lib/aws-sns-subscriptions";
+import * as iam from "aws-cdk-lib/aws-iam";
 import { Construct } from "constructs";
 
 interface OrdersAppStackProps extends cdk.StackProps {
   productsDdb: dynamodb.Table;
+  eventsDdb: dynamodb.Table;
 }
 
 export class OrdersAppStack extends cdk.Stack {
@@ -52,6 +56,29 @@ export class OrdersAppStack extends cdk.Stack {
       ordersApiLayerArn
     );
 
+    //Order Events Layer
+    const orderEventsLayerArn = ssm.StringParameter.valueForStringParameter(
+      this,
+      "OrderEventsLayerVersionArn"
+    );
+    const orderEventsLayer = lambda.LayerVersion.fromLayerVersionArn(
+      this,
+      "OrderEventsLayerVersionArn",
+      orderEventsLayerArn
+    );
+
+    //Order Events Repository Layer
+    const orderEventsRepositoryLayerArn =
+      ssm.StringParameter.valueForStringParameter(
+        this,
+        "OrderEventsRepositoryLayerVersionArn"
+      );
+    const orderEventsRepositoryLayer = lambda.LayerVersion.fromLayerVersionArn(
+      this,
+      "OrderEventsRepositoryLayerVersionArn",
+      orderEventsRepositoryLayerArn
+    );
+
     //Products Layer
     const productsLayerArn = ssm.StringParameter.valueForStringParameter(
       this,
@@ -62,6 +89,12 @@ export class OrdersAppStack extends cdk.Stack {
       "ProductsLayer",
       productsLayerArn
     );
+
+    // SNS
+    const ordersTopic = new sns.Topic(this, "OrdersTopic", {
+      displayName: "Orders events topic",
+      topicName: "orders-events",
+    });
 
     this.ordersHandler = new lambdaNodeJS.NodejsFunction(
       this,
@@ -80,13 +113,84 @@ export class OrdersAppStack extends cdk.Stack {
         environment: {
           PRODUCTS_DDB: props.productsDdb.tableName,
           ORDERS_DDB: ordersDdb.tableName,
+          ORDERS_EVENTS_TOPIC_ARN: ordersTopic.topicArn,
         },
-        layers: [ordersLayer, productsLayer, ordersApiLayer],
+        layers: [ordersLayer, productsLayer, ordersApiLayer, orderEventsLayer],
         insightsVersion: lambda.LambdaInsightsVersion.VERSION_1_0_119_0,
       }
     );
 
     ordersDdb.grantReadWriteData(this.ordersHandler);
     props.productsDdb.grantReadData(this.ordersHandler); // Da a permissão somente de leitura a tabela de pedidos
+    ordersTopic.grantPublish(this.ordersHandler); // Permite que a função publique mensagens no tópico SNS
+
+    const orderEventsHandler = new lambdaNodeJS.NodejsFunction(
+      this,
+      "OrderEventsFunction",
+      {
+        functionName: "OrderEventsFunction",
+        entry: "lambda/orders/orderEventsFunction.ts",
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_20_X,
+        memorySize: 512,
+        timeout: cdk.Duration.seconds(2),
+        bundling: {
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          EVENTS_DDB: props.eventsDdb.tableName,
+        },
+        layers: [orderEventsLayer, orderEventsRepositoryLayer],
+        insightsVersion: lambda.LambdaInsightsVersion.VERSION_1_0_119_0,
+      }
+    );
+
+    ordersTopic.addSubscription(
+      new subs.LambdaSubscription(orderEventsHandler)
+    ); //Inscreve a função lambda como uma assinatura do tópico SNS
+
+    const eventsDdbPolicy = new iam.PolicyStatement({
+      // Da permissão especifica para a tabela de eventos
+      effect: iam.Effect.ALLOW,
+      actions: ["dynamodb:PutItem"],
+      resources: [props.eventsDdb.tableArn],
+      conditions: {
+        ["ForAllValues:StringLike"]: {
+          "dynamodb:LeadingKeys": ["#order_*"],
+        },
+      },
+    });
+
+    orderEventsHandler.addToRolePolicy(eventsDdbPolicy);
+
+    const billingHandler = new lambdaNodeJS.NodejsFunction(
+      this,
+      "BillingFunction",
+      {
+        functionName: "BillingFunction",
+        entry: "lambda/orders/billingFunction.ts",
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_20_X,
+        memorySize: 512,
+        timeout: cdk.Duration.seconds(2),
+        bundling: {
+          minify: true,
+          sourceMap: false,
+        },
+        insightsVersion: lambda.LambdaInsightsVersion.VERSION_1_0_119_0,
+      }
+    );
+
+    // ADICIONA FILTRO PARA A FUNÇÃO SER ACIONADA APENAS QUANDO O FILTRO FOR ATIVADO
+    ordersTopic.addSubscription(
+      new subs.LambdaSubscription(billingHandler, {
+        filterPolicy: {
+          eventType: sns.SubscriptionFilter.stringFilter({
+            allowlist: ["ORDER_CREATED"],
+          }),
+        },
+      })
+    ); //Inscreve a função lambda como uma assinatura do tópico SNS
   }
 }

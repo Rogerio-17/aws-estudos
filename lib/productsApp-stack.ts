@@ -3,6 +3,7 @@ import * as lambdaNodeJS from "aws-cdk-lib/aws-lambda-nodejs";
 import * as cdk from "aws-cdk-lib";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as ssm from "aws-cdk-lib/aws-ssm";
+import * as iam from "aws-cdk-lib/aws-iam";
 
 import { Construct } from "constructs";
 
@@ -72,7 +73,20 @@ export class ProductsAppStack extends cdk.Stack {
         insightsVersion: lambda.LambdaInsightsVersion.VERSION_1_0_119_0,
       }
     );
-    props.eventsDdb.grantWriteData(productEventsHandler); // Define o tipo de permissão que a função vai ter dentro do DynamoDB
+
+    const eventsDdbPolicy = new iam.PolicyStatement({
+      // Da permissão especifica para a tabela de eventos
+      effect: iam.Effect.ALLOW,
+      actions: ["dynamodb:PutItem"],
+      resources: [props.eventsDdb.tableArn],
+      conditions: {
+        ["ForAllValues:StringLike"]: {
+          "dynamodb:LeadingKeys": ["#product_*"],
+        },
+      },
+    });
+
+    productEventsHandler.addToRolePolicy(eventsDdbPolicy); // Define o tipo de permissão que a função vai ter dentro do DynamoDB
 
     // Define uma lambda function para buscar produtos
     this.productsFunctionHandler = new lambdaNodeJS.NodejsFunction(

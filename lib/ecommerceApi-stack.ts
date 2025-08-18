@@ -91,7 +91,7 @@ export class ECommerceApiStack extends cdk.Stack {
         type: apigateway.JsonSchemaType.OBJECT,
         properties: {
           email: { type: apigateway.JsonSchemaType.STRING },
-          productsIds: {
+          productIds: {
             type: apigateway.JsonSchemaType.ARRAY,
             minLength: 1,
             items: {
@@ -103,7 +103,7 @@ export class ECommerceApiStack extends cdk.Stack {
             enum: ["CASH", "DEBIT_CARD", "CREDIT_CARD"],
           },
         },
-        required: ["email", "productsIds", "payment"],
+        required: ["email", "productIds", "payment"],
       },
     });
 
