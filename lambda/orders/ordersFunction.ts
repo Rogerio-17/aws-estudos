@@ -165,7 +165,7 @@ async function sendOrderEvent(
 ) {
   const productsCodes: string[] = [];
 
-  order.products.forEach((product) => {
+  order.products?.forEach((product) => {
     productsCodes.push(product.code);
   });
 
@@ -199,7 +199,7 @@ async function sendOrderEvent(
 
 function convertToOrderResponse(order: Order): OrderResponse {
   const orderProductResponse: OrderProductResponse[] = [];
-  order.products.forEach((product) => {
+  order.products?.forEach((product) => {
     orderProductResponse.push({
       code: product.code,
       price: product.price,
@@ -209,7 +209,7 @@ function convertToOrderResponse(order: Order): OrderResponse {
   const orderResponse: OrderResponse = {
     email: order.pk,
     id: order.sk!,
-    products: orderProductResponse,
+    products: orderProductResponse.length ? orderProductResponse : undefined,
     createdAt: order.createdAt!,
     billing: {
       payment: order.billing.payment as PaymentType,

@@ -40,6 +40,6 @@ export interface OrderResponse {
     carrier: CarrierType;
     type: ShippingType;
   };
-  products: OrderProductResponse[];
+  products?: OrderProductResponse[];
   createdAt: number;
 }
