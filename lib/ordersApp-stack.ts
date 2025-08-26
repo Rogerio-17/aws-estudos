@@ -6,6 +6,9 @@ import * as ssm from "aws-cdk-lib/aws-ssm";
 import * as sns from "aws-cdk-lib/aws-sns";
 import * as subs from "aws-cdk-lib/aws-sns-subscriptions";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as sqs from "aws-cdk-lib/aws-sqs";
+import * as lambdaEventSource from "aws-cdk-lib/aws-lambda-event-sources";
+
 import { Construct } from "constructs";
 
 interface OrdersAppStackProps extends cdk.StackProps {
@@ -192,5 +195,64 @@ export class OrdersAppStack extends cdk.Stack {
         },
       })
     ); //Inscreve a função lambda como uma assinatura do tópico SNS
+
+    // DLQ
+    const orderEventsDlq = new sqs.Queue(this, "OrderEventsDlq", {
+      queueName: "order-events-dlq",
+      enforceSSL: false,
+      encryption: sqs.QueueEncryption.UNENCRYPTED,
+      retentionPeriod: cdk.Duration.days(10),
+    });
+
+    // Cria a fila SQS para eventos de pedidos
+    const orderEventsQueue = new sqs.Queue(this, "OrderEventsQueue", {
+      queueName: "order-events",
+      enforceSSL: false, //Remove criptografia
+      encryption: sqs.QueueEncryption.UNENCRYPTED,
+      deadLetterQueue: {
+        maxReceiveCount: 3, //Numero maximo de tentativas
+        queue: orderEventsDlq,
+      },
+    });
+
+    ordersTopic.addSubscription(
+      new subs.SqsSubscription(orderEventsQueue, {
+        filterPolicy: {
+          eventType: sns.SubscriptionFilter.stringFilter({
+            allowlist: ["ORDER_CREATED"],
+          }),
+        },
+      })
+    );
+
+    const orderEmailsHandler = new lambdaNodeJS.NodejsFunction(
+      this,
+      "OrderEmailsFunction",
+      {
+        functionName: "OrderEmailsFunction",
+        entry: "lambda/orders/orderEmailsFunction.ts",
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_20_X,
+        memorySize: 512,
+        timeout: cdk.Duration.seconds(2),
+        bundling: {
+          minify: true,
+          sourceMap: false,
+        },
+        layers: [orderEventsLayer],
+        insightsVersion: lambda.LambdaInsightsVersion.VERSION_1_0_119_0,
+      }
+    );
+
+    // Adiciona a fonte de eventos SQS
+    orderEmailsHandler.addEventSource(
+      new lambdaEventSource.SqsEventSource(orderEventsQueue, {
+        batchSize: 5, // A função será acionada quando houver 5 mensagens na fila
+        enabled: true,
+        maxBatchingWindow: cdk.Duration.minutes(1),
+      })
+    );
+    // Adiciona permissão para consumo de mensagem
+    orderEventsQueue.grantConsumeMessages(orderEmailsHandler);
   }
 }

@@ -115,9 +115,6 @@ export class ProductRepository {
       })
       .promise();
 
-    console.log("Product:", product);
-    console.log("Product updated:", data.Attributes);
-
     return data.Attributes as Product;
   }
 }
