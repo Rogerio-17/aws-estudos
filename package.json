@@ -26,6 +26,8 @@
     "aws-cdk-lib": "2.208.0",
     "aws-xray-sdk": "^3.10.3",
     "aws-xray-sdk-core": "^3.10.3",
+    "@aws-cdk/aws-apigatewayv2-alpha": "2.114.1-alpha.0",
+    "@aws-cdk/aws-apigatewayv2-integrations-alpha": "2.114.1-alpha.0",
     "constructs": "^10.0.0"
   }
 }
